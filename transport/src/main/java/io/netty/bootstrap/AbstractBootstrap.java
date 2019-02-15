@@ -279,6 +279,9 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     }
 
     private ChannelFuture doBind(final SocketAddress localAddress) {
+        //初始化ServerBootstrap相关配置，包括但不限于Channel的配置、创建创建Channel的工厂对象等
+        //创建一个保存并执行任务的线程池，通过PowerOfTwoEventExecutorChooser来选择创建什么类型的线程池
+        //此时的ChannelFuture 为DefaultChannelPromise.class
         final ChannelFuture regFuture = initAndRegister();
         final Channel channel = regFuture.channel();
         if (regFuture.cause() != null) {
@@ -293,6 +296,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         } else {
             // Registration future is almost always fulfilled already, but just in case it's not.
             final PendingRegistrationPromise promise = new PendingRegistrationPromise(channel);
+            //注册操作未完成，注册一个监听器
             regFuture.addListener(new ChannelFutureListener() {
                 @Override
                 public void operationComplete(ChannelFuture future) throws Exception {
@@ -317,7 +321,12 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     final ChannelFuture initAndRegister() {
         Channel channel = null;
         try {
+            //通过在channel()中，指定了channelFactory为ReflectiveChannelFactory.class
+            //此时的channel对象是通过反射创建而来的
             channel = channelFactory.newChannel();
+            //给NIO管道初始化
+            //同时给ChannelPipeline增加默认的ChannelHandler
+                //  ServerBootstrapAcceptor 和ServerBootstrapConfig.handler()
             init(channel);
         } catch (Throwable t) {
             if (channel != null) {
@@ -330,7 +339,16 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
             return new DefaultChannelPromise(new FailedChannel(), GlobalEventExecutor.INSTANCE).setFailure(t);
         }
 
+        //config return ServerBootstrapConfig
+        //ServerBootstrapConfig.group() 返回的是 EventLoopGroup
+        // 此时的ServerBootstarp对象是否是创建ServerBootstrap的bossGroup
+        // 疑问： 为啥不直接获取AbstractBootstarp中的group(),而要通过调用方法形式去获取group
+        // 解答： 根据netty 4.x的class文件中，这行代码是this.group().register(channel);
+                // 此时是没有走config()获取的
+        //register默认最终走的是   PowerOfTwoEventExecutorChooser 来创建一个线程池
+        //此时的ChannelFuture 为DefaultChannelPromise.class
         ChannelFuture regFuture = config().group().register(channel);
+        //通过register中获取的线程池，并且往线程池中提交即将要执行IO任务，放入到线程池中同时返回保存任务的对象
         if (regFuture.cause() != null) {
             if (channel.isRegistered()) {
                 channel.close();
@@ -359,10 +377,13 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
 
         // This method is invoked before channelRegistered() is triggered.  Give user handlers a chance to set up
         // the pipeline in its channelRegistered() implementation.
+        //此时的ChannelFuture 为DefaultChannelPromise.class
+        //ServerBootstrap下channel为NioServerSocketChannel
         channel.eventLoop().execute(new Runnable() {
             @Override
             public void run() {
                 if (regFuture.isSuccess()) {
+                    //bind()作用是将ChannelHandler串成一个串，给ChannelFuture最终遍历去执行
                     channel.bind(localAddress, promise).addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
                 } else {
                     promise.setFailure(regFuture.cause());
@@ -438,6 +459,8 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         return copiedMap(attrs);
     }
 
+
+    //ServerBootstrap时的channel可以认为是NioServerSocketChannel.class 对象
     static void setChannelOptions(
             Channel channel, Map<ChannelOption<?>, Object> options, InternalLogger logger) {
         for (Map.Entry<ChannelOption<?>, Object> e: options.entrySet()) {
@@ -453,9 +476,12 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     }
 
     @SuppressWarnings("unchecked")
+    //ServerBootstrap时的channel可以认为是NioServerSocketChannel.class 对象
     private static void setChannelOption(
             Channel channel, ChannelOption<?> option, Object value, InternalLogger logger) {
         try {
+            //NioServerSocketChannel.config = new NioServerSocketChannelConfig(this, javaChannel().socket());
+            //通过NioChannelOption.setOption可知，在jdk1.7 并且 option instanceof NioChannelOption 下，提升了setOption的性能
             if (!channel.config().setOption((ChannelOption<Object>) option, value)) {
                 logger.warn("Unknown channel option '{}' for channel '{}'", option, channel);
             }

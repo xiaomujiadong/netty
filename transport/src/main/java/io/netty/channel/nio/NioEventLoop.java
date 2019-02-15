@@ -403,6 +403,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
     protected void run() {
         for (;;) {
             try {
+                //查询是否有就绪的IO事件
                 switch (selectStrategy.calculateStrategy(selectNowSupplier, hasTasks())) {
                     case SelectStrategy.CONTINUE:
                         continue;
@@ -703,6 +704,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         }
     }
 
+    //唤醒一个阻塞在select（）上的线程，代价比较昂贵
     @Override
     protected void wakeup(boolean inEventLoop) {
         if (!inEventLoop && wakenUp.compareAndSet(false, true)) {

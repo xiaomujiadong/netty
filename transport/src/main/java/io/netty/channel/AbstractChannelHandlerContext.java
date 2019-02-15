@@ -479,12 +479,17 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap
             // cancelled
             return promise;
         }
-
+        //因为Pipeline是维持一个ChannelHandle的链表的，findContextOutbound 是一直找前驱的
+        //通过这个可知，出站获取的第一个ChannelHandler是添加的最后一个ChannelHandler
         final AbstractChannelHandlerContext next = findContextOutbound();
         EventExecutor executor = next.executor();
+        //判断当前执行线程是否在线程池内，在的话，直接同步调用invokeBind方法
+        //invokeBind()方法作用是：相当于递归调用AbstractChannelHandlerContext.bind()，
+        //作用是相当于把所有的ChannelHandler串起来，行程链状调用
         if (executor.inEventLoop()) {
             next.invokeBind(localAddress, promise);
         } else {
+            //不在线程池内，提交任务
             safeExecute(executor, new Runnable() {
                 @Override
                 public void run() {
@@ -898,7 +903,7 @@ abstract class AbstractChannelHandlerContext extends DefaultAttributeMap
         if (promise == null) {
             throw new NullPointerException("promise");
         }
-
+        //取消和完成的时候isDone()都为true
         if (promise.isDone()) {
             // Check if the promise was cancelled and if so signal that the processing of the operation
             // should not be performed.

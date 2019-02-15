@@ -204,6 +204,10 @@ public class NioServerSocketChannel extends AbstractNioMessageChannel
 
         @Override
         public <T> boolean setOption(ChannelOption<T> option, T value) {
+            //通过NioChannelOption.setOption可知，在jdk1.7 并且 option instanceof NioChannelOption 下，提升了setOption的性能
+            //NioChannelOption.setOption 的方法注释:
+                //Internal helper methods to remove code duplication between Nio*Channel implementations.
+            //  表示内部帮助器方法删除NIO通道中的代码复制
             if (PlatformDependent.javaVersion() >= 7 && option instanceof NioChannelOption) {
                 return NioChannelOption.setOption(jdkChannel(), (NioChannelOption<T>) option, value);
             }

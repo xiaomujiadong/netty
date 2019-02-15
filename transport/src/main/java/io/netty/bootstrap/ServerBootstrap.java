@@ -140,11 +140,15 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
     @Override
     void init(Channel channel) throws Exception {
         //里面的options再生成对象的时候创建，是一个linkHashMap
+        //通过option()方法赋值
         final Map<ChannelOption<?>, Object> options = options0();
+        //ServerBootstrap时的channel可以认为是NioServerSocketChannel.class 对象
         synchronized (options) {
+            //给NIO通道初始化相关属性
             setChannelOptions(channel, options, logger);
         }
-        //里面的options再生成对象的时候创建，是一个linkHashMap
+        // attrs = new LinkedHashMap<AttributeKey<?>, Object>();
+        //如果未指定ServerBootstrap的attrs，此时attrs是为空的默认为空
         final Map<AttributeKey<?>, Object> attrs = attrs0();
         synchronized (attrs) {
             for (Entry<AttributeKey<?>, Object> e: attrs.entrySet()) {
@@ -168,7 +172,7 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
             currentChildAttrs = childAttrs.entrySet().toArray(newAttrArray(0));
         }
 
-        //新增默认的
+        //新增默认的ChannelHandler
         p.addLast(new ChannelInitializer<Channel>() {
             @Override
             public void initChannel(final Channel ch) throws Exception {
@@ -177,7 +181,8 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
                 if (handler != null) {
                     pipeline.addLast(handler);
                 }
-
+                //ServerBootstrapAcceptor 本质也是ChannelHandler
+                //所以第一个ChannelHandler是默认的
                 ch.eventLoop().execute(new Runnable() {
                     @Override
                     public void run() {
